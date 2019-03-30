@@ -1250,4 +1250,56 @@ describe('DOMSource.events()', function() {
       });
     run();
   });
+  //https://codesandbox.io/s/23pj2xoyqp?fontsize=14
+  it.only('should reattach non-bubbling events after redraw', function(done) {
+    const {sinks, sources, run} = setup(main, {
+      DOM: makeDOMDriver(createRenderTarget()),
+    });
+    let count = 0;
+    sources.DOM.select('button')
+      .events('click')
+      .addListener({
+        next: (ev: Event) => {
+          count += 1;
+          if (count == 3) {
+            done();
+          }
+        },
+      });
+
+    function click(elem: HTMLElement | HTMLFormElement) {
+      setTimeout(() => elem.click());
+    }
+    sources.DOM.select(':root')
+      .element()
+      .drop(1)
+      .addListener({
+        next: (root: Element) => {
+          const button = root.querySelector('button') as HTMLElement;
+          click(button);
+        },
+      });
+    run();
+    function main(sources: {DOM: DOMSource}) {
+      const formSubmit$ = sources.DOM.select('form')
+        .events('submit', {preventDefault: true})
+        .mapTo({});
+
+      const notformClick$ = sources.DOM.select('.notform')
+        .events('click')
+        .mapTo({});
+
+      const state$ = xs.merge(formSubmit$, notformClick$).fold(p => !p, true);
+
+      const vdom$ = state$.map(showForm =>
+        showForm
+          ? form([button('Form button')])
+          : button('.notform', {props: {type: 'button'}}, 'Not form button')
+      );
+
+      return {
+        DOM: vdom$,
+      };
+    }
+  });
 });
